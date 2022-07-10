@@ -1,0 +1,75 @@
+version: '3'
+
+services:
+  mariadb:
+    restart: always
+    image: mariadb:10.8
+    container_name: 'mariadb'
+    expose:
+      - 3306
+    volumes:
+      - ~/data/mariadb:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_PASSWORD=password
+      - MYSQL_USER=user
+      - MYSQL_DATABASE=main
+
+  mongodb:
+    restart: always
+    image: mongo:5.0.9
+    container_name: 'mongodb'
+    expose:
+      - 27017
+    volumes:
+      - ~/data/mongo:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=secret_pass
+      - MONGO_INITDB_DATABASE=main
+  
+  rabbitmq:
+    restart: always
+    image: rabbitmq:3.10.5-management-alpine
+    container_name: 'rabbitmq'
+    expose:
+      - 5672
+    ports:
+      - 15672:15672
+    volumes:
+      - ~/data/rabbitmq/data/:/var/lib/rabbitmq/
+      - ~/data/rabbitmq/log/:/var/log/rabbitmq
+
+  main-service:
+    restart: always
+    build:
+      context: ./main/
+      dockerfile: Dockerfile
+    container_name: 'main-service'
+    image: frankoslaw/main-service-latest
+    ports:
+      - 8001:8001
+    environment:
+      - ADMIN_PANEL_HOST=admin-service
+      - DB_HOST=mongodb
+      - MQTT_HOST=rabbitmq
+    links:
+      - rabbitmq
+      - mongodb
+
+  admin-service:
+    restart: always
+    build:
+      context: ./admin/
+      dockerfile: Dockerfile
+    container_name: 'admin-service'
+    image: frankoslaw/admin-service-latest
+    ports:
+      - 8000:8000
+    environment:
+      - DB_HOST=mariadb
+      - MQTT_HOST=rabbitmq
+    links:
+      - rabbitmq
+      - mariadb
